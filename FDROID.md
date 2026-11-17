@@ -42,7 +42,46 @@ jobs further in Doze / battery saver; exempting the app from battery optimisatio
 ./gradlew assembleProdRelease
 ```
 
-No `google-services.json` is required anymore.
+No `google-services.json` is required anymore. Optional properties: `-PabiFilters=arm64-v8a` (smaller APK)
+and `-PversionCodeOverride=<n>`. Release signing reads `RELEASE_KEYSTORE_FILE`, `RELEASE_KEYSTORE_PASSWORD`,
+`RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD` from the environment (falls back to the debug key).
+
+## Self-hosted F-Droid repository
+
+`.github/workflows/fdroid-repo.yml` builds a signed release APK (arm64-v8a) on every push and publishes a
+complete F-Droid repository (signed index + APK) as the assets of the GitHub release `repo`.
+
+Add it in the F-Droid app (or Droid-ify / Neo Store): *Settings → Repositories → +* and enter
+
+```
+https://github.com/LofisMusk/android-mail/releases/download/repo
+```
+
+The exact URL with the fingerprint is printed in the summary of every workflow run. Each run gets a higher
+`versionCode` (1000 + run number), so F-Droid offers it as an update.
+
+### Signing keys
+
+The app signing key and the repository index key must never change, otherwise updates fail. The workflow
+uses, in this order:
+
+1. Repository secrets `FDROID_APP_KEYSTORE_BASE64`, `FDROID_REPO_KEYSTORE_BASE64` (base64 of PKCS12
+   keystores with aliases `app` and `repokey`) and `FDROID_KEYSTORE_PASSWORD`. **Recommended.**
+2. Keys generated on the first run and stored in the Actions cache. This works out of the box, but a cache
+   is evicted after 7 days without a build and is not shared from a feature branch to `main`. If that
+   happens, new keys are generated: uninstall the app and re-add the repository.
+
+To make the keys permanent, generate them locally and store them as secrets:
+
+```
+keytool -genkeypair -keystore app.jks  -storetype PKCS12 -alias app     -keyalg RSA -keysize 4096 -validity 36500 -dname "CN=Proton Mail FOSS build"
+keytool -genkeypair -keystore repo.jks -storetype PKCS12 -alias repokey -keyalg RSA -keysize 4096 -validity 36500 -dname "CN=Proton Mail FOSS F-Droid repository"
+base64 -w0 app.jks   # -> FDROID_APP_KEYSTORE_BASE64
+base64 -w0 repo.jks  # -> FDROID_REPO_KEYSTORE_BASE64
+```
+
+(use the same password for both keystores and keys → `FDROID_KEYSTORE_PASSWORD`). Switching from the cached
+keys to secrets changes the signature once, so do it before installing, or reinstall afterwards.
 
 ## Remaining blockers for the official F-Droid repository
 

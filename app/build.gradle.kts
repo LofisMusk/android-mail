@@ -47,6 +47,17 @@ val gitHash: String by lazy {
     gitHashProvider.get()
 }
 
+/**
+ * Release signing for the self-hosted F-Droid repository (see `.github/workflows/fdroid-repo.yml`).
+ * When the keystore is not provided, release builds keep using the debug signing config.
+ */
+val releaseKeystoreFile: String? = System.getenv("RELEASE_KEYSTORE_FILE")?.takeIf { it.isNotBlank() }
+
+/** Optional overrides used by CI: a monotonically increasing version code and a subset of ABIs. */
+val versionCodeOverride: Int? = providers.gradleProperty("versionCodeOverride").orNull?.toInt()
+val abiFiltersOverride: List<String>? = providers.gradleProperty("abiFilters").orNull
+    ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }
+
 android {
     namespace = "ch.protonmail.android"
     compileSdk = AppConfiguration.compileSdk.get()
@@ -56,8 +67,10 @@ android {
         minSdk = AppConfiguration.minSdk.get()
         targetSdk = AppConfiguration.targetSdk.get()
         ndkVersion = AppConfiguration.ndkVersion.get()
-        versionCode = AppConfiguration.versionCode.get()
+        versionCode = versionCodeOverride ?: AppConfiguration.versionCode.get()
         versionName = AppConfiguration.versionName.get()
+
+        abiFiltersOverride?.let { abis -> ndk { abiFilters += abis } }
 
         testInstrumentationRunner = AppConfiguration.testInstrumentationRunner.get()
         testInstrumentationRunnerArguments["clearPackageData"] = "true"
@@ -76,6 +89,14 @@ android {
     }
 
     signingConfigs {
+        if (releaseKeystoreFile != null) {
+            create("release") {
+                storeFile = file(releaseKeystoreFile)
+                storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
         getByName("debug") {
             val debugKeystore = file("$rootDir/keystore/debug.keystore")
 
@@ -105,7 +126,7 @@ android {
                 *fileTree("proguard").files.toTypedArray()
             )
 
-            signingConfig = signingConfigs["debug"]
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs["debug"]
         }
         create("benchmark") {
             initWith(getByName("release"))
@@ -302,9 +323,9 @@ dependencies {
     kspAndroidTest(project(":test:robot:ksp:processor"))
 }
 
-fun isSentryAutoUploadEnabled(): Boolean = gradle.startParameter.taskNames.any {
-    it.contains("release", true)
-}
+// Uploads need Sentry credentials; Google-free/F-Droid builds have none, so only upload when a token is set.
+fun isSentryAutoUploadEnabled(): Boolean = !System.getenv("SENTRY_AUTH_TOKEN").isNullOrBlank() &&
+    gradle.startParameter.taskNames.any { it.contains("release", true) }
 
 sentry {
     autoInstallation {
