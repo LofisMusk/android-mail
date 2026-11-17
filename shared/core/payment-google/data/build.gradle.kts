@@ -46,7 +46,6 @@ android {
 }
 
 dependencies {
-    implementation(libs.android.billing)
     implementation(libs.dagger.hilt.android)
     implementation(libs.proton.core.utilKotlin)
     implementation(libs.proton.android.payment)

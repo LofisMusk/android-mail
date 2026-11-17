@@ -69,7 +69,6 @@ dependencies {
     implementation(libs.proton.core.challenge.presentation)
     implementation(libs.proton.core.account.domain)
     implementation(libs.proton.core.fido.domain)
-    implementation(libs.proton.core.fido.play)
     implementation(libs.proton.core.domain)
     implementation(libs.proton.core.pass.validator.presentation)
     implementation(libs.proton.core.presentation)

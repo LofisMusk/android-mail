@@ -22,8 +22,6 @@ import android.content.Context
 import androidx.core.app.NotificationManagerCompat
 import ch.protonmail.android.mailnotifications.data.local.NotificationsPermissionLocalDataSource
 import ch.protonmail.android.mailnotifications.data.local.NotificationsPermissionLocalDataSourceImpl
-import ch.protonmail.android.mailnotifications.data.repository.DeviceRegistrationRepository
-import ch.protonmail.android.mailnotifications.data.repository.DeviceRegistrationRepositoryImpl
 import ch.protonmail.android.mailnotifications.data.repository.NotificationsPermissionRepository
 import ch.protonmail.android.mailnotifications.data.repository.NotificationsPermissionRepositoryImpl
 import ch.protonmail.android.mailnotifications.domain.handler.AccountStateAwareNotificationHandler
@@ -32,7 +30,6 @@ import ch.protonmail.android.mailnotifications.domain.proxy.NotificationManagerC
 import ch.protonmail.android.mailnotifications.domain.proxy.NotificationManagerCompatProxyImpl
 import ch.protonmail.android.mailnotifications.permissions.NotificationsPermissionOrchestrator
 import ch.protonmail.android.mailnotifications.permissions.NotificationsPermissionOrchestratorImpl
-import com.google.firebase.messaging.FirebaseMessaging
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -50,10 +47,6 @@ object MailNotificationsModule {
 
     @Provides
     @Reusable
-    fun provideFirebaseMessaging(): FirebaseMessaging = FirebaseMessaging.getInstance()
-
-    @Provides
-    @Reusable
     fun provideNotificationManagerCompat(@ApplicationContext context: Context): NotificationManagerCompat =
         NotificationManagerCompat.from(context)
 
@@ -67,12 +60,6 @@ object MailNotificationsModule {
     @Module
     @InstallIn(SingletonComponent::class)
     internal interface BindsModule {
-
-        @Binds
-        @Singleton
-        fun bindDeviceRegistrationRepository(
-            implementation: DeviceRegistrationRepositoryImpl
-        ): DeviceRegistrationRepository
 
         @Binds
         @Singleton

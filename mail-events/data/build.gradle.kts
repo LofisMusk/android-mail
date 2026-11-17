@@ -55,7 +55,6 @@ dependencies {
 
     implementation(libs.bundles.module.data)
     implementation(libs.proton.core.domain)
-    implementation(libs.play.installreferrer)
 
     testImplementation(libs.bundles.test)
     testImplementation(project(":test:utils"))

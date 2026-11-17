@@ -53,7 +53,6 @@ android {
 }
 
 dependencies {
-    implementation(libs.android.billing)
     implementation(libs.androidx.compose.runtime)
 
     implementation(libs.dagger.hilt.android)

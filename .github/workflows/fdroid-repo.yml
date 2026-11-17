@@ -1,0 +1,202 @@
+# Builds the Google-free APK and publishes a self-hosted F-Droid repository as the assets of the GitHub
+# release with tag `repo`. Add this URL to the F-Droid client (Settings -> Repositories -> +):
+#
+#   https://github.com/<owner>/<repo>/releases/download/repo
+#
+# Signing keys (app + repository index) are taken from repository secrets when present:
+#   FDROID_APP_KEYSTORE_BASE64, FDROID_REPO_KEYSTORE_BASE64, FDROID_KEYSTORE_PASSWORD
+# Otherwise they are generated on the first run and kept in the Actions cache of this repository, so the
+# signature stays the same between builds. See FDROID.md for how to make them permanent.
+name: F-Droid repository
+
+on:
+  push:
+    branches:
+      - main
+      - claude/eloquent-johnson-bk0pez
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fdroid-repo
+  cancel-in-progress: true
+
+env:
+  RELEASE_TAG: repo
+  ABIS: arm64-v8a
+  NDK_VERSION: 28.1.13356709
+  KEYS_DIR: ${{ github.workspace }}/../fdroid-keys
+  APP_ID: ch.protonmail.android
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/node_modules /opt/ghc /usr/local/.ghcup \
+            /usr/share/swift /usr/local/share/boost /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install Android NDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION" > /dev/null
+
+      - name: Restore signing keys
+        id: keys-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.KEYS_DIR }}
+          key: fdroid-signing-keys-v1
+
+      - name: Prepare signing keys
+        id: keys
+        env:
+          APP_KEYSTORE_B64: ${{ secrets.FDROID_APP_KEYSTORE_BASE64 }}
+          REPO_KEYSTORE_B64: ${{ secrets.FDROID_REPO_KEYSTORE_BASE64 }}
+          SECRET_PASSWORD: ${{ secrets.FDROID_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$KEYS_DIR"
+          chmod 700 "$KEYS_DIR"
+          if [ -n "$APP_KEYSTORE_B64" ] && [ -n "$REPO_KEYSTORE_B64" ] && [ -n "$SECRET_PASSWORD" ]; then
+            echo "Using signing keys from repository secrets"
+            echo "$APP_KEYSTORE_B64" | base64 -d > "$KEYS_DIR/app.jks"
+            echo "$REPO_KEYSTORE_B64" | base64 -d > "$KEYS_DIR/repo.jks"
+            PASSWORD="$SECRET_PASSWORD"
+          elif [ -f "$KEYS_DIR/app.jks" ] && [ -f "$KEYS_DIR/repo.jks" ] && [ -f "$KEYS_DIR/password" ]; then
+            echo "Using signing keys from the Actions cache"
+            PASSWORD="$(cat "$KEYS_DIR/password")"
+          else
+            echo "No signing keys found, generating new ones"
+            PASSWORD="$(openssl rand -hex 24)"
+            printf '%s' "$PASSWORD" > "$KEYS_DIR/password"
+            keytool -genkeypair -keystore "$KEYS_DIR/app.jks" -storetype PKCS12 -alias app \
+              -storepass "$PASSWORD" -keypass "$PASSWORD" -keyalg RSA -keysize 4096 -validity 36500 \
+              -dname "CN=Proton Mail FOSS build" > /dev/null
+            keytool -genkeypair -keystore "$KEYS_DIR/repo.jks" -storetype PKCS12 -alias repokey \
+              -storepass "$PASSWORD" -keypass "$PASSWORD" -keyalg RSA -keysize 4096 -validity 36500 \
+              -dname "CN=Proton Mail FOSS F-Droid repository" > /dev/null
+            echo "generated=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "::add-mask::$PASSWORD"
+          {
+            echo "RELEASE_KEYSTORE_FILE=$KEYS_DIR/app.jks"
+            echo "RELEASE_KEYSTORE_PASSWORD=$PASSWORD"
+            echo "RELEASE_KEY_ALIAS=app"
+            echo "RELEASE_KEY_PASSWORD=$PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Save generated signing keys
+        if: steps.keys.outputs.generated == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.KEYS_DIR }}
+          key: fdroid-signing-keys-v1
+
+      - name: Build release APK
+        run: |
+          # The runner has 16 GB of RAM: keep parallelism low and skip lint-vital (it does not change the APK),
+          # otherwise R8 + the Kotlin daemon run out of memory.
+          ./gradlew --no-daemon --max-workers=2 \
+            -Dorg.gradle.jvmargs="-Xmx6g -Dfile.encoding=UTF-8" \
+            -Pkotlin.daemon.jvmargs=-Xmx3g \
+            :app:assembleProdRelease -x :app:lintVitalProdRelease \
+            -PversionCodeOverride=$((1000 + GITHUB_RUN_NUMBER)) \
+            -PabiFilters="$ABIS"
+          ls -la app/build/outputs/apk/prod/release/
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install fdroidserver
+        run: pip install --quiet fdroidserver
+
+      - name: Generate F-Droid repository
+        run: |
+          set -euo pipefail
+          VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))
+          mkdir -p fdroid/repo fdroid/metadata
+          cp app/build/outputs/apk/prod/release/*.apk "fdroid/repo/${APP_ID}_${VERSION_CODE}.apk"
+          cat > fdroid/metadata/${APP_ID}.yml <<EOF
+          Categories:
+            - Internet
+          License: GPL-3.0-or-later
+          AuthorName: Proton AG (unofficial Google-free build)
+          SourceCode: https://github.com/${GITHUB_REPOSITORY}
+          IssueTracker: https://github.com/${GITHUB_REPOSITORY}/issues
+          Name: Proton Mail (FOSS)
+          Summary: Proton Mail without Google Play Services
+          Description: |-
+            Unofficial build of Proton Mail without any proprietary Google component.
+            New mail notifications are fetched natively (no Firebase), in-app purchases
+            and security-key 2FA are unavailable. Built from ${GITHUB_SHA}.
+          EOF
+          cat > fdroid/config.yml <<EOF
+          repo_url: https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}
+          repo_name: Proton Mail FOSS
+          repo_description: >-
+            Google-free builds of Proton Mail from ${GITHUB_REPOSITORY}.
+          archive_older: 0
+          sdk_path: ${ANDROID_HOME}
+          keystore: ${KEYS_DIR}/repo.jks
+          repo_keyalias: repokey
+          keystorepass: ${RELEASE_KEYSTORE_PASSWORD}
+          keypass: ${RELEASE_KEYSTORE_PASSWORD}
+          keydname: CN=Proton Mail FOSS F-Droid repository
+          EOF
+          chmod 600 fdroid/config.yml
+          cd fdroid
+          fdroid update --pretty
+          ls -la repo
+
+      - name: Publish repository to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --prerelease \
+              --title "F-Droid repository" \
+              --notes "Self-hosted F-Droid repository. Add https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG} in the F-Droid app."
+          fi
+          # Upload the new index + APK first, then drop files that are not part of the new repository.
+          FILES=$(find fdroid/repo -maxdepth 1 -type f \( -name '*.apk' -o -name '*.jar' -o -name '*.json' -o -name '*.xml' \))
+          gh release upload "$RELEASE_TAG" $FILES --clobber
+          NEW_NAMES=$(for f in $FILES; do basename "$f"; done)
+          for asset in $(gh release view "$RELEASE_TAG" --json assets -q '.assets[].name'); do
+            if ! grep -qxF "$asset" <<< "$NEW_NAMES"; then
+              gh release delete-asset "$RELEASE_TAG" "$asset" --yes
+            fi
+          done
+
+      - name: Summary
+        run: |
+          FINGERPRINT=$(keytool -exportcert -alias repokey -keystore "$KEYS_DIR/repo.jks" \
+            -storepass "$RELEASE_KEYSTORE_PASSWORD" | sha256sum | cut -d' ' -f1 | tr 'a-f' 'A-F')
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}"
+          {
+            echo "## F-Droid repository published"
+            echo ""
+            echo "Repository URL: \`$URL\`"
+            echo ""
+            echo "Fingerprint: \`$FINGERPRINT\`"
+            echo ""
+            echo "Add in F-Droid: \`$URL?fingerprint=$FINGERPRINT\`"
+          } >> "$GITHUB_STEP_SUMMARY"
