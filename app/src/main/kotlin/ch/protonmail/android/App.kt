@@ -34,7 +34,7 @@ import ch.protonmail.android.mailbugreport.domain.LogsExportFeatureSetting
 import ch.protonmail.android.mailbugreport.domain.annotations.LogsExportFeatureSettingValue
 import ch.protonmail.android.mailcommon.domain.benchmark.BenchmarkTracer
 import ch.protonmail.android.mailevents.presentation.AppOpenLifecycleObserver
-import ch.protonmail.android.mailnotifications.domain.FirebaseMessagingTokenLifecycleObserver
+import ch.protonmail.android.mailnotifications.domain.NativeNotificationsLifecycleObserver
 import ch.protonmail.android.mailsession.data.initializer.DatabaseLifecycleObserver
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -57,7 +57,7 @@ internal class App : Application() {
     lateinit var databaseLifecycleObserver: Provider<DatabaseLifecycleObserver>
 
     @Inject
-    lateinit var firebaseLifecycleObserver: Provider<FirebaseMessagingTokenLifecycleObserver>
+    lateinit var nativeNotificationsLifecycleObserver: Provider<NativeNotificationsLifecycleObserver>
 
     @Inject
     lateinit var eventLoopLifecycleObserver: Provider<RustEventLoopErrorLifecycleObserver>
@@ -81,7 +81,7 @@ internal class App : Application() {
 
         addLogsFileHandlerObserver()
         addDatabaseObserver()
-        addFirebaseTokenLifecycleObserver()
+        addNativeNotificationsLifecycleObserver()
         addEventLoopObserver()
         addAppOpenLifecycleObserver()
 
@@ -98,8 +98,8 @@ internal class App : Application() {
         ProcessLifecycleOwner.get().lifecycle.addObserver(databaseLifecycleObserver.get())
     }
 
-    private fun addFirebaseTokenLifecycleObserver() {
-        ProcessLifecycleOwner.get().lifecycle.addObserver(firebaseLifecycleObserver.get())
+    private fun addNativeNotificationsLifecycleObserver() {
+        ProcessLifecycleOwner.get().lifecycle.addObserver(nativeNotificationsLifecycleObserver.get())
     }
 
     private fun addEventLoopObserver() {

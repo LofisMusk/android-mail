@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Proton Technologies AG
+ * Copyright (c) 2026 Proton Technologies AG
  * This file is part of Proton Technologies AG and Proton Mail.
  *
  * Proton Mail is free software: you can redistribute it and/or modify
@@ -18,32 +18,17 @@
 
 package me.proton.android.core.payment.google.data
 
-import android.content.Context
-import com.google.android.gms.common.ConnectionResult.SERVICE_DISABLED
-import com.google.android.gms.common.ConnectionResult.SERVICE_INVALID
-import com.google.android.gms.common.ConnectionResult.SERVICE_MISSING
-import com.google.android.gms.common.ConnectionResult.SERVICE_UPDATING
-import com.google.android.gms.common.ConnectionResult.SERVICE_VERSION_UPDATE_REQUIRED
-import com.google.android.gms.common.ConnectionResult.SUCCESS
-import com.google.android.gms.common.GoogleApiAvailability
-import dagger.hilt.android.qualifiers.ApplicationContext
 import me.proton.android.core.payment.google.domain.GoogleServicesAvailability
 import me.proton.android.core.payment.google.domain.GoogleServicesUtils
 import javax.inject.Inject
 
-public class GoogleServicesUtilsImpl @Inject constructor(
-    @ApplicationContext private val context: Context
-) : GoogleServicesUtils {
-    override fun getApkVersion(): Int = GoogleApiAvailability.getInstance().getApkVersion(context)
+/**
+ * Google-free (F-Droid) [GoogleServicesUtils]: Google Play Services are never used by this build, so they are
+ * always reported as missing. This keeps every Play-Store-only flow (e.g. in-app purchases) disabled.
+ */
+public class GoogleServicesUtilsImpl @Inject constructor() : GoogleServicesUtils {
 
-    override fun getPlayServicesAvailability(): GoogleServicesAvailability =
-        when (GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context)) {
-            SUCCESS -> GoogleServicesAvailability.Success
-            SERVICE_MISSING -> GoogleServicesAvailability.ServiceMissing
-            SERVICE_UPDATING -> GoogleServicesAvailability.ServiceUpdating
-            SERVICE_VERSION_UPDATE_REQUIRED -> GoogleServicesAvailability.ServiceVersionUpdateRequired
-            SERVICE_DISABLED -> GoogleServicesAvailability.ServiceDisabled
-            SERVICE_INVALID -> GoogleServicesAvailability.ServiceInvalid
-            else -> GoogleServicesAvailability.Unexpected
-        }
+    override fun getApkVersion(): Int = 0
+
+    override fun getPlayServicesAvailability(): GoogleServicesAvailability = GoogleServicesAvailability.ServiceMissing
 }

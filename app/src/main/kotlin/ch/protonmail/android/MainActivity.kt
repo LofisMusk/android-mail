@@ -45,8 +45,6 @@ import ch.protonmail.android.navigation.model.LauncherState
 import ch.protonmail.android.navigation.share.NewIntentObserver
 import coil.Coil
 import coil.ImageLoader
-import com.google.android.play.core.review.ReviewException
-import com.google.android.play.core.review.ReviewManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import me.proton.android.core.payment.domain.IconResourceManager
@@ -67,9 +65,6 @@ class MainActivity : AppCompatActivity() {
 
     @Inject
     lateinit var iconResourceManager: IconResourceManager
-
-    @Inject
-    lateinit var reviewManager: ReviewManager
 
     @Inject
     lateinit var accountWelcomeProvider: AccountWelcomeProvider
@@ -219,22 +214,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleLaunchInAppReview() {
-        val request = reviewManager.requestReviewFlow()
-        Timber.d("ReviewFlow - Requesting Review Flow...")
-        request.addOnCompleteListener { task ->
-            if (task.isSuccessful) {
-                val reviewInfo = task.result
-                val flow = reviewManager.launchReviewFlow(this, reviewInfo)
-                flow.addOnCompleteListener { _ ->
-                    Timber.d("ReviewFlow - Rating In-App Review flow completed.")
-                }
-            } else {
-                when (val exception = task.exception) {
-                    is ReviewException -> Timber.e("ReviewFlow - In app review error: ${exception.errorCode}")
-                    else -> Timber.e("ReviewFlow - Generic error while requesting in app review: $exception")
-                }
-            }
-        }
+        // The Google Play In-App Review API is not available in the Google-free (F-Droid) build.
+        Timber.d("ReviewFlow - In-app review is not available in this build, skipping.")
     }
 
     data class Actions(

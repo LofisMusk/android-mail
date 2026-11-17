@@ -14,7 +14,6 @@ We’ve recently rebuilt the app and are focused on our current roadmap of featu
   - Set Java 17 as the current version by using the `JAVA_HOME` environment variable
 - Clone this repository (Use `git clone git@github.com:ProtonMail/android-mail.git`.)
 - Ensure [Git LFS](https://git-lfs.com/) is installed (`git lfs install`) for snapshot test assets
-- Setup `google-services.json` file by running `./scripts/setup_google_services.sh`
 - Build with any of the following:
   - Execute `./gradlew assembleAlphaDebug` in a terminal
   - Open Android Studio and build the `:app` module

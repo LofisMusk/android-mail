@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Proton Technologies AG
+ * Copyright (c) 2026 Proton Technologies AG
  * This file is part of Proton Technologies AG and Proton Mail.
  *
  * Proton Mail is free software: you can redistribute it and/or modify
@@ -16,12 +16,19 @@
  * along with Proton Mail. If not, see <https://www.gnu.org/licenses/>.
  */
 
-package ch.protonmail.android.mailnotifications.data.repository
+package ch.protonmail.android.mailevents.data.referrer
 
 import arrow.core.Either
+import arrow.core.left
 import ch.protonmail.android.mailcommon.domain.model.DataError
+import ch.protonmail.android.mailevents.domain.model.InstallReferrer
+import javax.inject.Inject
 
-interface DeviceRegistrationRepository {
+/**
+ * The Google Play Install Referrer API is proprietary and unavailable outside of Google Play, so the
+ * Google-free (F-Droid) build never reports an install referrer.
+ */
+class NoOpInstallReferrerDataSourceImpl @Inject constructor() : InstallReferrerDataSource {
 
-    suspend fun registerDeviceToken(token: String): Either<DataError, Unit>
+    override suspend fun getInstallReferrer(): Either<DataError, InstallReferrer> = DataError.Local.Unknown.left()
 }

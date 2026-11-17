@@ -21,7 +21,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
-    id("com.google.gms.google-services")
     kotlin("android")
     kotlin("kapt")
     id("com.google.devtools.ksp")
@@ -91,14 +90,10 @@ android {
     }
 
     buildTypes {
-        // In UI Tests, we don't want the FCM service to be instantiated.
-        val isFcmServiceEnabled = properties["enableFcmService"] ?: true
-
         debug {
             isDebuggable = true
             enableUnitTestCoverage = false
             isMinifyEnabled = false
-            manifestPlaceholders["isFcmServiceEnabled"] = isFcmServiceEnabled
         }
         release {
             isDebuggable = false
@@ -110,14 +105,12 @@ android {
                 *fileTree("proguard").files.toTypedArray()
             )
 
-            manifestPlaceholders["isFcmServiceEnabled"] = isFcmServiceEnabled
             signingConfig = signingConfigs["debug"]
         }
         create("benchmark") {
             initWith(getByName("release"))
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
-            manifestPlaceholders["isFcmServiceEnabled"] = false
             defaultConfig {
                 testInstrumentationRunnerArguments["androidx.benchmark.fullTracing.enable"] = "true"
             }
@@ -226,7 +219,6 @@ dependencies {
     implementation(project(":shared:core:payment-google:presentation"))
 
     implementation(libs.proton.android.payment)
-    implementation(libs.proton.android.payment.billing.google)
     implementation(libs.kotlin.serialization.json)
 
     implementation(libs.bundles.appLibs)
@@ -273,9 +265,6 @@ dependencies {
     implementation(project(":design-system"))
     implementation(project(":presentation-compose"))
 
-    implementation(libs.play.review.core)
-    implementation(libs.play.review.ext)
-    implementation(libs.play.services)
     implementation(libs.androidx.compose.animation)
 
     implementation(libs.androidx.webkit)
